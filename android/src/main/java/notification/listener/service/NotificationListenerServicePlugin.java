@@ -58,10 +58,10 @@ public class NotificationListenerServicePlugin implements FlutterPlugin, Activit
 
     @Override
     public void onMethodCall(@NonNull MethodCall call, @NonNull Result result) {
-        pendingResult = result;
         if (call.method.equals("isPermissionGranted")) {
             result.success(isPermissionGranted(context));
         } else if (call.method.equals("requestPermission")) {
+            pendingResult = result;
             Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
             try {
                 mActivity.startActivityForResult(intent, REQUEST_CODE_FOR_NOTIFICATIONS);
@@ -184,6 +184,7 @@ public class NotificationListenerServicePlugin implements FlutterPlugin, Activit
             } else {
                 pendingResult.success(false);
             }
+            pendingResult = null;
             return true;
         }
         return false;
