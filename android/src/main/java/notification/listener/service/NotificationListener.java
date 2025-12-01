@@ -34,15 +34,21 @@ import notification.listener.service.models.Action;
 @RequiresApi(api = VERSION_CODES.JELLY_BEAN_MR2)
 public class NotificationListener extends NotificationListenerService {
     private static NotificationListener instance;
+    private static boolean running = false;
 
     public static NotificationListener getInstance() {
         return instance;
+    }
+
+    public static void setRunning(boolean running) {
+        NotificationListener.running = running;
     }
 
     @Override
     public void onListenerConnected() {
         super.onListenerConnected();
         instance = this;
+        running = false;
     }
 
     @RequiresApi(api = VERSION_CODES.KITKAT)
@@ -59,6 +65,8 @@ public class NotificationListener extends NotificationListenerService {
 
     @RequiresApi(api = VERSION_CODES.KITKAT)
     private void handleNotification(StatusBarNotification notification, boolean isRemoved) {
+        if (!running) return;
+
         String packageName = notification.getPackageName();
         Bundle extras = notification.getNotification().extras;
         boolean isOngoing = (notification.getNotification().flags & Notification.FLAG_ONGOING_EVENT) != 0;

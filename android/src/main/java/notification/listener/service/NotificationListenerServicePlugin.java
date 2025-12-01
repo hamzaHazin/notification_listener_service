@@ -42,6 +42,7 @@ public class NotificationListenerServicePlugin implements FlutterPlugin, Activit
     private NotificationReceiver notificationReceiver;
     private Context context;
     private Activity mActivity;
+    private EventChannel.EventSink eventSink;
 
     private Result pendingResult;
     final int REQUEST_CODE_FOR_NOTIFICATIONS = 1199;
@@ -92,8 +93,13 @@ public class NotificationListenerServicePlugin implements FlutterPlugin, Activit
             } else {
                 result.error("ServiceUnavailable", "NotificationService not running", null);
             }
-        }
-        else {
+        } else if (call.method.equals("startListening")) {
+            startListening();
+            result.success(true);
+        } else if (call.method.equals("stopListening")) {
+            stopListening();
+            result.success(true);
+        } else {
             result.notImplemented();
         }
     }
@@ -124,26 +130,47 @@ public class NotificationListenerServicePlugin implements FlutterPlugin, Activit
     public void onDetachedFromActivity() {
         this.mActivity = null;
     }
+
     @SuppressLint("WrongConstant")
+    private void startListening() {
+        if (notificationReceiver == null) {
+            IntentFilter intentFilter = new IntentFilter();
+            intentFilter.addAction(NotificationConstants.INTENT);
+            notificationReceiver = new NotificationReceiver(eventSink);
+             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                context.registerReceiver(notificationReceiver, intentFilter, Context.RECEIVER_EXPORTED);
+            }else{
+                context.registerReceiver(notificationReceiver, intentFilter);
+            }
+        }
+        Intent listenerIntent = new Intent(context, NotificationListener.class);
+        context.startService(listenerIntent);
+        NotificationListener.setRunning(true);
+        Log.i("NotificationPlugin", "Started the notifications tracking service.");
+    }
+
+    private void stopListening() {
+        if (notificationReceiver != null) {
+            try {
+                context.unregisterReceiver(notificationReceiver);
+            } catch (Exception e) {
+                // Ignore errors if receiver not registered.
+            }
+            notificationReceiver = null;
+        }
+        NotificationListener.setRunning(false);
+        Log.i("NotificationPlugin", "Stopped the notifications tracking service.");
+    }
+
     @Override
     public void onListen(Object arguments, EventChannel.EventSink events) {
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(NotificationConstants.INTENT);
-        notificationReceiver = new NotificationReceiver(events);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            context.registerReceiver(notificationReceiver, intentFilter, Context.RECEIVER_EXPORTED);
-        }else{
-            context.registerReceiver(notificationReceiver, intentFilter);
-        }
-        Intent listenerIntent = new Intent(context, NotificationReceiver.class);
-        context.startService(listenerIntent);
-        Log.i("NotificationPlugin", "Started the notifications tracking service.");
+        this.eventSink = events;
     }
 
     @Override
     public void onCancel(Object arguments) {
-        context.unregisterReceiver(notificationReceiver);
-        notificationReceiver = null;
+        stopListening();
+        eventSink = null;
     }
 
     @Override
