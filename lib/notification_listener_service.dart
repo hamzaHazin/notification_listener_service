@@ -29,7 +29,8 @@ class NotificationListenerService {
   /// it will open the notification settings page and return `true` once the permission granted.
   static Future<bool> requestPermission() async {
     try {
-      return await methodeChannel.invokeMethod('requestPermission');
+      final result = await methodeChannel.invokeMethod('requestPermission');
+      return result ?? false;
     } on PlatformException catch (error) {
       log("$error");
       return Future.value(false);
@@ -39,7 +40,8 @@ class NotificationListenerService {
   /// check if notification permission is enebaled
   static Future<bool> isPermissionGranted() async {
     try {
-      return await methodeChannel.invokeMethod('isPermissionGranted');
+      final result = await methodeChannel.invokeMethod('isPermissionGranted');
+      return result ?? false;
     } on PlatformException catch (error) {
       log("$error");
       return false;
@@ -63,7 +65,8 @@ class NotificationListenerService {
   /// Start listening to notifications.
   static Future<bool> startListening() async {
     try {
-      return await methodeChannel.invokeMethod('startListening');
+      final result = await methodeChannel.invokeMethod('startListening');
+      return result ?? false;
     } on PlatformException catch (error) {
       log("startListening error: $error");
       return false;
@@ -73,7 +76,8 @@ class NotificationListenerService {
   /// Stop listening to notifications.
   static Future<bool> stopListening() async {
     try {
-      return await methodeChannel.invokeMethod('stopListening');
+      final result = await methodeChannel.invokeMethod('stopListening');
+      return result ?? false;
     } on PlatformException catch (error) {
       log("stopListening error: $error");
       return false;
