@@ -26,14 +26,13 @@ import io.flutter.plugin.common.MethodChannel.Result;
 import io.flutter.plugin.common.PluginRegistry;
 import notification.listener.service.models.Action;
 import notification.listener.service.models.ActionCache;
-import android.annotation.SuppressLint;
-import android.os.Build;
 
 import java.util.List;
 import java.util.Map;
 
 public class NotificationListenerServicePlugin implements FlutterPlugin, ActivityAware, MethodCallHandler, PluginRegistry.ActivityResultListener, EventChannel.StreamHandler {
 
+    private static final String TAG = "NotifListenerPlugin";
     private static final String CHANNEL_TAG = "x-slayer/notifications_channel";
     private static final String EVENT_TAG = "x-slayer/notifications_event";
 
@@ -58,16 +57,19 @@ public class NotificationListenerServicePlugin implements FlutterPlugin, Activit
 
     @Override
     public void onMethodCall(@NonNull MethodCall call, @NonNull Result result) {
+        Log.d(TAG, "onMethodCall: " + call.method);
         if (call.method.equals("isPermissionGranted")) {
             result.success(isPermissionGranted(context));
         } else if (call.method.equals("requestPermission")) {
+            Log.d(TAG, "Setting pendingResult for requestPermission: " + result);
             pendingResult = result;
             Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
             try {
                 mActivity.startActivityForResult(intent, REQUEST_CODE_FOR_NOTIFICATIONS);
             } catch (ActivityNotFoundException e) {
-                Log.e("NotificationPlugin", "ActivityNotFoundException: " + e.getMessage());
-                result.error("ACTIVITY_NOT_FOUND", "No activity found to handle notification listener settings", null);
+                Log.e(TAG, "ActivityNotFoundException: " + e.getMessage());
+                pendingResult.error("ACTIVITY_NOT_FOUND", "No activity found to handle notification listener settings", null);
+                pendingResult = null;
             }
         } else if (call.method.equals("sendReply")) {
             final String message = call.argument("message");
@@ -76,6 +78,7 @@ public class NotificationListenerServicePlugin implements FlutterPlugin, Activit
             final Action action = ActionCache.cachedNotifications.get(notificationId);
             if (action == null) {
                 result.error("Notification", "Can't find this cached notification", null);
+                return;
             }
             try {
                 action.sendReply(context, message);
@@ -136,16 +139,16 @@ public class NotificationListenerServicePlugin implements FlutterPlugin, Activit
             IntentFilter intentFilter = new IntentFilter();
             intentFilter.addAction(NotificationConstants.INTENT);
             notificationReceiver = new NotificationReceiver(eventSink);
-             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 context.registerReceiver(notificationReceiver, intentFilter, Context.RECEIVER_EXPORTED);
-            }else{
+            } else {
                 context.registerReceiver(notificationReceiver, intentFilter);
             }
         }
         Intent listenerIntent = new Intent(context, NotificationListener.class);
         context.startService(listenerIntent);
         NotificationListener.setRunning(true);
-        Log.i("NotificationPlugin", "Started the notifications tracking service.");
+        Log.i(TAG, "Started the notifications tracking service.");
     }
 
     private void stopListening() {
@@ -153,37 +156,48 @@ public class NotificationListenerServicePlugin implements FlutterPlugin, Activit
             try {
                 context.unregisterReceiver(notificationReceiver);
             } catch (Exception e) {
-                // Ignore errors if receiver not registered.
+                // Ignore
             }
             notificationReceiver = null;
         }
         NotificationListener.setRunning(false);
-        Log.i("NotificationPlugin", "Stopped the notifications tracking service.");
+        Log.i(TAG, "Stopped the notifications tracking service.");
     }
 
     @Override
     public void onListen(Object arguments, EventChannel.EventSink events) {
+        Log.d(TAG, "onListen called");
         this.eventSink = events;
     }
 
     @Override
     public void onCancel(Object arguments) {
+        Log.d(TAG, "onCancel called");
         stopListening();
         eventSink = null;
     }
 
     @Override
     public boolean onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (pendingResult == null) return false;
+        Log.d(TAG, "onActivityResult. requestCode: " + requestCode + ", resultCode: " + resultCode + ", pendingResult: " + pendingResult);
+        if (pendingResult == null) {
+            Log.w(TAG, "onActivityResult called with a null pendingResult.");
+            return false;
+        }
 
         if (requestCode == REQUEST_CODE_FOR_NOTIFICATIONS) {
-            if (resultCode == Activity.RESULT_OK) {
-                pendingResult.success(true);
-            } else if (resultCode == Activity.RESULT_CANCELED) {
-                pendingResult.success(isPermissionGranted(context));
-            } else {
-                pendingResult.success(false);
+            try {
+                if (resultCode == Activity.RESULT_OK) {
+                    pendingResult.success(true);
+                } else if (resultCode == Activity.RESULT_CANCELED) {
+                    pendingResult.success(isPermissionGranted(context));
+                } else {
+                    pendingResult.success(false);
+                }
+            } catch (IllegalStateException e) {
+                Log.e(TAG, "Error delivering result in onActivityResult: " + e.getMessage());
             }
+            Log.d(TAG, "Clearing pendingResult.");
             pendingResult = null;
             return true;
         }
